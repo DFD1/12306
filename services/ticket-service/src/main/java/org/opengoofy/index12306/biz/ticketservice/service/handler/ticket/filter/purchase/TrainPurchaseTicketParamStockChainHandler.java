@@ -49,11 +49,16 @@ public class TrainPurchaseTicketParamStockChainHandler implements TrainPurchaseT
     @Override
     public void handler(PurchaseTicketReqDTO requestParam) {
         // 车次站点是否还有余票。如果用户提交多个乘车人非同一座位类型，拆分验证
+        //构造查询余票的key 例如从北京南 -> 杭州东 key为  1_北京南_杭州东
         String keySuffix = StrUtil.join("_", requestParam.getTrainId(), requestParam.getDeparture(), requestParam.getArrival());
         StringRedisTemplate stringRedisTemplate = (StringRedisTemplate) distributedCache.getInstance();
+        //获取所有购票乘车人信息 包括乘车人ID 和 座位类型
         List<PurchaseTicketPassengerDetailDTO> passengerDetails = requestParam.getPassengers();
+        //统计本次购票各个座位类型需要的票数 比如 二等座需要一张 seatTypeMap = {2:{key : 2, value : 1}}
         Map<Integer, List<PurchaseTicketPassengerDetailDTO>> seatTypeMap = passengerDetails.stream()
                 .collect(Collectors.groupingBy(PurchaseTicketPassengerDetailDTO::getSeatType));
+
+        //判断该车站点是否还有余票
         seatTypeMap.forEach((seatType, passengerSeatDetails) -> {
             Object stockObj = stringRedisTemplate.opsForHash().get(TRAIN_STATION_REMAINING_TICKET + keySuffix, String.valueOf(seatType));
             int stock = Optional.ofNullable(stockObj).map(each -> Integer.parseInt(each.toString())).orElseGet(() -> {

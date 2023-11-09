@@ -72,6 +72,7 @@ public final class DelayCloseOrderConsumer implements RocketMQListener<MessageWr
     @Value("${ticket.availability.cache-update.type:}")
     private String ticketAvailabilityCacheUpdateType;
 
+    //消费延时消息
     @Override
     public void onMessage(MessageWrapper<DelayCloseOrderEvent> delayCloseOrderEventMessageWrapper) {
         log.info("[延迟关闭订单] 开始消费：{}", JSON.toJSONString(delayCloseOrderEventMessageWrapper));

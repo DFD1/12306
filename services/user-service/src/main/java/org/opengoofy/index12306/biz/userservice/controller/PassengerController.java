@@ -69,6 +69,7 @@ public class PassengerController {
      */
     @Idempotent(
             uniqueKeyPrefix = "index12306-user:lock_passenger-alter:",
+            //通过 UserContext 容器获取当前登录用户名
             key = "T(org.opengoofy.index12306.frameworks.starter.user.core.UserContext).getUsername()",
             type = IdempotentTypeEnum.SPEL,
             scene = IdempotentSceneEnum.RESTAPI,

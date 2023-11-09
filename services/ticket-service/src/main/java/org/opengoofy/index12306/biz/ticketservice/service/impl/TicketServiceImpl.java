@@ -161,21 +161,31 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
         StringRedisTemplate stringRedisTemplate = (StringRedisTemplate) distributedCache.getInstance();
         // 列车查询逻辑较为复杂，详细解析文章查看 https://nageoffer.com/12306/question
         // v1 版本存在严重的性能深渊问题，v2 版本完美的解决了该问题。通过 Jmeter 压测聚合报告得知，性能提升在 300% - 500%+
+
+        //根据出发车站code和到达车站code查询redis,multiGet方法是从redis中的hash中获取多个字段的值，获取的是出发地城市和到达地城市。例如 stationDetails = {"北京","杭州"}
         List<Object> stationDetails = stringRedisTemplate.opsForHash()
                 .multiGet(REGION_TRAIN_STATION_MAPPING, Lists.newArrayList(requestParam.getFromStation(), requestParam.getToStation()));
+        //判断出发车站和到达车站是否为空，即redis中没有缓存出发地code和到达地code对应的城市
         long count = stationDetails.stream().filter(Objects::isNull).count();
         if (count > 0) {
+            //没有缓存，需要从数据库中查询出发地code和到达地code对应的城市。使用分布式锁
             RLock lock = redissonClient.getLock(LOCK_REGION_TRAIN_STATION_MAPPING);
             lock.lock();
             try {
+                //使用双重判定锁，再查询一次缓存，如果还是没有就去数据库查询
                 stationDetails = stringRedisTemplate.opsForHash()
                         .multiGet(REGION_TRAIN_STATION_MAPPING, Lists.newArrayList(requestParam.getFromStation(), requestParam.getToStation()));
                 count = stationDetails.stream().filter(Objects::isNull).count();
                 if (count > 0) {
+                    //缓存中还是没有，去数据库中查询
+                    //从t_station表中查询所有的车站信息。
                     List<StationDO> stationDOList = stationMapper.selectList(Wrappers.emptyWrapper());
+                    //创建城市和车站code的映射关系
                     Map<String, String> regionTrainStationMap = new HashMap<>();
                     stationDOList.forEach(each -> regionTrainStationMap.put(each.getCode(), each.getRegionName()));
+                    //将映射关系存入redis中
                     stringRedisTemplate.opsForHash().putAll(REGION_TRAIN_STATION_MAPPING, regionTrainStationMap);
+                    //创建stationDetails，获取出发车站code和到达车站code对应的城市
                     stationDetails = new ArrayList<>();
                     stationDetails.add(regionTrainStationMap.get(requestParam.getFromStation()));
                     stationDetails.add(regionTrainStationMap.get(requestParam.getToStation()));
@@ -184,6 +194,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
                 lock.unlock();
             }
         }
+        //查询列车站点的信息
         List<TicketListDTO> seatResults = new ArrayList<>();
         String buildRegionTrainStationHashKey = String.format(REGION_TRAIN_STATION, stationDetails.get(0), stationDetails.get(1));
         Map<Object, Object> regionTrainStationAllMap = stringRedisTemplate.opsForHash().entries(buildRegionTrainStationHashKey);
@@ -343,9 +354,11 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
                 .build();
     }
 
+
+    //v1是分布式锁版本
     @Override
     public TicketPurchaseRespDTO purchaseTicketsV1(PurchaseTicketReqDTO requestParam) {
-        // 责任链模式，验证 1：参数必填 2：参数正确性 3：乘客是否已买当前车次等...
+        // 责任链模式，验证 0：参数必填 1：参数正确性（车次是否未开售，是否已经禁止购票，车站是否存在于车次中）2：列车车次是否还有余票
         purchaseTicketAbstractChainContext.handler(TicketChainMarkEnum.TRAIN_PURCHASE_TICKET_FILTER.name(), requestParam);
         // v1 版本购票存在 4 个较为严重的问题，v2 版本相比较 v1 版本更具有业务特点以及性能，整体提升较大
         // 写了详细的 v2 版本购票升级指南，欢迎查阅 https://nageoffer.com/12306/question
@@ -363,6 +376,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
             .expireAfterWrite(1, TimeUnit.DAYS)
             .build();
 
+    //v2 令牌限流算法+分布式锁版本
     @Override
     public TicketPurchaseRespDTO purchaseTicketsV2(PurchaseTicketReqDTO requestParam) {
         // 责任链模式，验证 1：参数必填 2：参数正确性 3：乘客是否已买当前车次等...

@@ -68,7 +68,9 @@ public class PassengerServiceImpl implements PassengerService {
     private final PlatformTransactionManager transactionManager;
     private final DistributedCache distributedCache;
 
+
     @Override
+    //根据用户名查询乘车人列表
     public List<PassengerRespDTO> listPassengerQueryByUsername(String username) {
         String actualUserPassengerListStr = getActualUserPassengerListStr(username);
         return Optional.ofNullable(actualUserPassengerListStr)
@@ -78,6 +80,8 @@ public class PassengerServiceImpl implements PassengerService {
     }
 
     private String getActualUserPassengerListStr(String username) {
+        //我们需要通过缓存来防止请求直接打到数据库。封装的缓存组件 safeGet 的作用就是，如果缓存中有，那么就从缓存中返回。、
+        // 如果缓存中没有，就查询数据库，并将查询数据库的结果，同步到缓存。
         return  distributedCache.safeGet(
                 USER_PASSENGER_LIST + username,
                 String.class,
@@ -106,18 +110,23 @@ public class PassengerServiceImpl implements PassengerService {
 
     @Override
     public void savePassenger(PassengerReqDTO requestParam) {
+        //开启事务
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transactionStatus = transactionManager.getTransaction(transactionDefinition);
+        //从ThreadLocal中获取登录的用户名。
         String username = UserContext.getUsername();
         try {
+            //将请求参数转换为PassengerDO对象
             PassengerDO passengerDO = BeanUtil.convert(requestParam, PassengerDO.class);
             passengerDO.setUsername(username);
             passengerDO.setCreateDate(new Date());
             passengerDO.setVerifyStatus(VerifyStatusEnum.REVIEWED.getCode());
+            //插入乘客信息到数据库
             int inserted = passengerMapper.insert(passengerDO);
             if (!SqlHelper.retBool(inserted)) {
                 throw new ServiceException(String.format("[%s] 新增乘车人失败", username));
             }
+            //提交事务
             transactionManager.commit(transactionStatus);
         } catch (Exception ex) {
             if (ex instanceof ServiceException) {
@@ -125,20 +134,27 @@ public class PassengerServiceImpl implements PassengerService {
             } else {
                 log.error("[{}] 新增乘车人失败，请求参数：{}", username, JSON.toJSONString(requestParam), ex);
             }
+            //如果发生异常，事务回滚
             transactionManager.rollback(transactionStatus);
             throw ex;
         }
+        //保存成功后，删除登录用户的乘客信息缓存。
+        //为了保证数据一致性，特别是crud操作之后，为了保持数据一致性，立即删除缓存，下次读取可以从数据库读取最新的数据。
         delUserPassengerCache(username);
     }
 
     @Override
     public void updatePassenger(PassengerReqDTO requestParam) {
+        //开启事务
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transactionStatus = transactionManager.getTransaction(transactionDefinition);
+        //获取ThreadLocal中的登录用户名
         String username = UserContext.getUsername();
         try {
+            //将请求参数转换为PassengerDO对象
             PassengerDO passengerDO = BeanUtil.convert(requestParam, PassengerDO.class);
             passengerDO.setUsername(username);
+            //修改乘车人信息
             LambdaUpdateWrapper<PassengerDO> updateWrapper = Wrappers.lambdaUpdate(PassengerDO.class)
                     .eq(PassengerDO::getUsername, username)
                     .eq(PassengerDO::getId, requestParam.getId());
@@ -146,6 +162,7 @@ public class PassengerServiceImpl implements PassengerService {
             if (!SqlHelper.retBool(updated)) {
                 throw new ServiceException(String.format("[%s] 修改乘车人失败", username));
             }
+            //提交事务
             transactionManager.commit(transactionStatus);
         } catch (Exception ex) {
             if (ex instanceof ServiceException) {
@@ -153,9 +170,11 @@ public class PassengerServiceImpl implements PassengerService {
             } else {
                 log.error("[{}] 修改乘车人失败，请求参数：{}", username, JSON.toJSONString(requestParam), ex);
             }
+            //事务回滚
             transactionManager.rollback(transactionStatus);
             throw ex;
         }
+        //删除缓存中登录用户的乘车人信息
         delUserPassengerCache(username);
     }
 

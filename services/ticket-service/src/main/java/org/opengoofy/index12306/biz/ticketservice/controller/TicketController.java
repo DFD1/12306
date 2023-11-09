@@ -62,6 +62,7 @@ public class TicketController {
      * 购买车票
      */
     @ILog
+    //防止重复提交
     @Idempotent(
             uniqueKeyPrefix = "index12306-ticket:lock_purchase-tickets:",
             key = "T(org.opengoofy.index12306.framework.starter.bases.ApplicationContextHolder).getBean('environment').getProperty('unique-name', '')"
@@ -71,6 +72,8 @@ public class TicketController {
             scene = IdempotentSceneEnum.RESTAPI,
             type = IdempotentTypeEnum.SPEL
     )
+    //key 的 第一部分通过 Spring IOC 容器获取 unique-name 这个参数，如果为空返回空字符串，第三部分负责获取当前登录用户，第二部分负责将两个值通过 _ 字符进行拼接。
+    //举例：你设置了 unique-name 参数为 mading，当前用户名 admin，那么最终就是 mading_admin。
     @PostMapping("/api/ticket-service/ticket/purchase")
     public Result<TicketPurchaseRespDTO> purchaseTickets(@RequestBody PurchaseTicketReqDTO requestParam) {
         return Results.success(ticketService.purchaseTicketsV1(requestParam));

@@ -53,6 +53,7 @@ public class UserServiceImpl implements UserService {
     private final UserMailMapper userMailMapper;
 
     @Override
+    //根据用户id查询用户信息，返回的是脱敏的用户信息
     public UserQueryRespDTO queryUserByUserId(String userId) {
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getId, userId);
@@ -64,6 +65,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    //根据用户名查询用户信息，返回的是脱敏的用户信息
     public UserQueryRespDTO queryUserByUsername(String username) {
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getUsername, username);
@@ -75,11 +77,13 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    //根据用户名查询用户信息，返回不脱敏的用户信息
     public UserQueryActualRespDTO queryActualUserByUsername(String username) {
         return BeanUtil.convert(queryUserByUsername(username), UserQueryActualRespDTO.class);
     }
 
     @Override
+    //根据证件类型和证件号查询注销次数
     public Integer queryUserDeletionNum(Integer idType, String idCard) {
         LambdaQueryWrapper<UserDeletionDO> queryWrapper = Wrappers.lambdaQuery(UserDeletionDO.class)
                 .eq(UserDeletionDO::getIdType, idType)

@@ -33,6 +33,7 @@ public class IdCardDesensitizationSerializer extends JsonSerializer<String> {
 
     @Override
     public void serialize(String idCard, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+        //DesensitizedUtil.idCardNum  接受三个参数 1.idCard原始的身份证号 2.front代表保留最前面front位字符 3.end代表保留最后面end位字符
         String idCardDesensitization = DesensitizedUtil.idCardNum(idCard, 4, 4);
         jsonGenerator.writeString(idCardDesensitization);
     }

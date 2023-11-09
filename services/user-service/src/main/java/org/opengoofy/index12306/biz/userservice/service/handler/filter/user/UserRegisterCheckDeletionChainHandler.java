@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 用户注册检查证件号是否多次注销
- *
+ * 验证用户名是否多次注销，如果注销次数大于等于5次，将拉入黑名单
  *
  */
 @Component

@@ -82,6 +82,7 @@ public class TrainPurchaseTicketParamVerifyChainHandler implements TrainPurchase
             }
         }
         // 车站是否存在车次中，以及车站的顺序是否正确
+        //查询出一趟列车的所有到达站 例如 车次北京南 -> 宁波    trainStationStopoverDetailStr = "[{"departure":"北京南"},{"departure":"济南西"},{"departure":"南京南"},{"departure":"杭州东"},{"departure":"宁波"}]"
         String trainStationStopoverDetailStr = distributedCache.safeGet(
                 TRAIN_STATION_STOPOVER_DETAIL + requestParam.getTrainId(),
                 String.class,
@@ -111,6 +112,7 @@ public class TrainPurchaseTicketParamVerifyChainHandler implements TrainPurchase
         return 10;
     }
 
+    //判断车站是否在车次中。
     public boolean validateStation(List<String> stationList, String startStation, String endStation) {
         int index1 = stationList.indexOf(startStation);
         int index2 = stationList.indexOf(endStation);

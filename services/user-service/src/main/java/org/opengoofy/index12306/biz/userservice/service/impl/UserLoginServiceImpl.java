@@ -94,9 +94,11 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParam) {
+        //获取登录使用的字符串
         String usernameOrMailOrPhone = requestParam.getUsernameOrMailOrPhone();
         boolean mailFlag = false;
         // 时间复杂度最佳 O(1)。indexOf or contains 时间复杂度为 O(n)
+        //判断使用的是否是邮箱登录
         for (char c : usernameOrMailOrPhone.toCharArray()) {
             if (c == '@') {
                 mailFlag = true;
@@ -105,18 +107,21 @@ public class UserLoginServiceImpl implements UserLoginService {
         }
         String username;
         if (mailFlag) {
+            //如果用户登录使用是邮箱，根据邮箱号从用户邮箱表中查询出用户名
             LambdaQueryWrapper<UserMailDO> queryWrapper = Wrappers.lambdaQuery(UserMailDO.class)
                     .eq(UserMailDO::getMail, usernameOrMailOrPhone);
             username = Optional.ofNullable(userMailMapper.selectOne(queryWrapper))
                     .map(UserMailDO::getUsername)
                     .orElseThrow(() -> new ClientException("用户名/手机号/邮箱不存在"));
         } else {
+            //如果用户登录使用是手机号，根据手机号从用户号码表中查询出用户名
             LambdaQueryWrapper<UserPhoneDO> queryWrapper = Wrappers.lambdaQuery(UserPhoneDO.class)
                     .eq(UserPhoneDO::getPhone, usernameOrMailOrPhone);
             username = Optional.ofNullable(userPhoneMapper.selectOne(queryWrapper))
                     .map(UserPhoneDO::getUsername)
                     .orElse(null);
         }
+        //如果用户名为空，则代表用户输入的是用户名，不是手机号也不是邮箱号，使用该用户名和密码到用户表中查询用户的数据。
         username = Optional.ofNullable(username).orElse(requestParam.getUsernameOrMailOrPhone());
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getUsername, username)
@@ -129,8 +134,10 @@ public class UserLoginServiceImpl implements UserLoginService {
                     .username(userDO.getUsername())
                     .realName(userDO.getRealName())
                     .build();
+            //如果查询到用户信息，则根据用户信息生成一个token
             String accessToken = JWTUtil.generateAccessToken(userInfo);
             UserLoginRespDTO actual = new UserLoginRespDTO(userInfo.getUserId(), requestParam.getUsernameOrMailOrPhone(), userDO.getRealName(), accessToken);
+            //将用户信息和token一起存入redis，过期时间为30分钟。
             distributedCache.put(accessToken, JSON.toJSONString(actual), 30, TimeUnit.MINUTES);
             return actual;
         }
@@ -149,10 +156,13 @@ public class UserLoginServiceImpl implements UserLoginService {
         }
     }
 
+    //判断用户名是否可用
     @Override
     public Boolean hasUsername(String username) {
+        //先判断布隆过滤器是否存在该用户名，如果没有，则该用户名一定可以使用。
         boolean hasUsername = userRegisterCachePenetrationBloomFilter.contains(username);
         if (hasUsername) {
+            //如果用户名存在与布隆过滤器，则还需要查询用户名可复用缓存是否存在该用户名，因为如果用户注销用户名的话，布隆过滤器无法删除元素，需要将用户名存入用户名可复用缓存。
             StringRedisTemplate instance = (StringRedisTemplate) distributedCache.getInstance();
             return instance.opsForSet().isMember(USER_REGISTER_REUSE_SHARDING + hashShardingIdx(username), username);
         }
@@ -162,7 +172,9 @@ public class UserLoginServiceImpl implements UserLoginService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public UserRegisterRespDTO register(UserRegisterReqDTO requestParam) {
+        //责任链模式验证注册用户请求参数是否合规
         abstractChainContext.handler(UserChainMarkEnum.USER_REGISTER_FILTER.name(), requestParam);
+        //分布式锁
         RLock lock = redissonClient.getLock(LOCK_USER_REGISTER + requestParam.getUsername());
         boolean tryLock = lock.tryLock();
         if (!tryLock) {
@@ -170,6 +182,7 @@ public class UserLoginServiceImpl implements UserLoginService {
         }
         try {
             try {
+                //注册用户信息
                 int inserted = userMapper.insert(BeanUtil.convert(requestParam, UserDO.class));
                 if (inserted < 1) {
                     throw new ServiceException(USER_REGISTER_FAIL);
@@ -183,6 +196,7 @@ public class UserLoginServiceImpl implements UserLoginService {
                     .username(requestParam.getUsername())
                     .build();
             try {
+                //注册用户手机号
                 userPhoneMapper.insert(userPhoneDO);
             } catch (DuplicateKeyException dke) {
                 log.error("用户 [{}] 注册手机号 [{}] 重复", requestParam.getUsername(), requestParam.getPhone());
@@ -194,6 +208,7 @@ public class UserLoginServiceImpl implements UserLoginService {
                         .username(requestParam.getUsername())
                         .build();
                 try {
+                    //注册用户邮箱
                     userMailMapper.insert(userMailDO);
                 } catch (DuplicateKeyException dke) {
                     log.error("用户 [{}] 注册邮箱 [{}] 重复", requestParam.getUsername(), requestParam.getMail());
@@ -201,9 +216,12 @@ public class UserLoginServiceImpl implements UserLoginService {
                 }
             }
             String username = requestParam.getUsername();
+            //删除用户可复用数据
             userReuseMapper.delete(Wrappers.update(new UserReuseDO(username)));
             StringRedisTemplate instance = (StringRedisTemplate) distributedCache.getInstance();
+            //删除用户可复用缓存数据
             instance.opsForSet().remove(USER_REGISTER_REUSE_SHARDING + hashShardingIdx(username), username);
+            //将注册的用户名添加进布隆过滤器
             // 布隆过滤器设计问题：设置多大、碰撞率以及初始容量不够了怎么办？详情查看：https://nageoffer.com/12306/question
             userRegisterCachePenetrationBloomFilter.add(username);
         } finally {
@@ -215,6 +233,7 @@ public class UserLoginServiceImpl implements UserLoginService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void deletion(UserDeletionReqDTO requestParam) {
+        //从ThreadLocal中获取登录的用户名
         String username = UserContext.getUsername();
         if (!Objects.equals(username, requestParam.getUsername())) {
             // 此处严谨来说，需要上报风控中心进行异常检测
@@ -222,13 +241,17 @@ public class UserLoginServiceImpl implements UserLoginService {
         }
         RLock lock = redissonClient.getLock(USER_DELETION + requestParam.getUsername());
         // 加锁为什么放在 try 语句外？https://www.yuque.com/magestack/12306/pu52u29i6eb1c5wh
+        //ReentrantLock的lock 方法通常应该写在 try 语句的外面。因为如果放在try语句里面，获取锁期间发生了异常，如果不释放锁，就可能导致死锁或资源泄漏等问题
         lock.lock();
         try {
+            //根据用户名查询用户表中的用户信息。
             UserQueryRespDTO userQueryRespDTO = userService.queryUserByUsername(username);
+            //构造用户注销信息。
             UserDeletionDO userDeletionDO = UserDeletionDO.builder()
                     .idType(userQueryRespDTO.getIdType())
                     .idCard(userQueryRespDTO.getIdCard())
                     .build();
+            //将用户注销信息插入到用户注销表
             userDeletionMapper.insert(userDeletionDO);
             UserDO userDO = new UserDO();
             userDO.setDeletionTime(System.currentTimeMillis());
@@ -247,9 +270,12 @@ public class UserLoginServiceImpl implements UserLoginService {
                         .build();
                 userMailMapper.deletionUser(userMailDO);
             }
+            //在缓存中删除注销用户的token
             distributedCache.delete(UserContext.getToken());
+            //添加到用户可复用表
             userReuseMapper.insert(new UserReuseDO(username));
             StringRedisTemplate instance = (StringRedisTemplate) distributedCache.getInstance();
+            //将用户名添加到用户可复用缓存中
             instance.opsForSet().add(USER_REGISTER_REUSE_SHARDING + hashShardingIdx(username), username);
         } finally {
             lock.unlock();

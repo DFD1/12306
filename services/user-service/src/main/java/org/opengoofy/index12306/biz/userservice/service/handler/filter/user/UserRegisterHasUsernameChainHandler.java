@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 用户注册用户名唯一检验
- *
+ * 验证用户名是否可用
  * 
  */
 @Component

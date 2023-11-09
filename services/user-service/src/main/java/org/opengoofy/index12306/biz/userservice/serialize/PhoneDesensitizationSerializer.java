@@ -33,6 +33,7 @@ public class PhoneDesensitizationSerializer extends JsonSerializer<String> {
 
     @Override
     public void serialize(String phone, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+        //手机号保留前三位后四位，中间隐藏
         String phoneDesensitization = DesensitizedUtil.mobilePhone(phone);
         jsonGenerator.writeString(phoneDesensitization);
     }

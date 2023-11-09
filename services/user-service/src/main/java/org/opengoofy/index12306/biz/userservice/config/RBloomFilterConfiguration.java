@@ -29,6 +29,7 @@ import org.springframework.context.annotation.Configuration;
  *
  */
 @Configuration
+//将 UserRegisterBloomFilterProperties 类注入到 Spring 容器中，以便在其他组件中使用。
 @EnableConfigurationProperties(UserRegisterBloomFilterProperties.class)
 public class RBloomFilterConfiguration {
 
@@ -37,7 +38,9 @@ public class RBloomFilterConfiguration {
      */
     @Bean
     public RBloomFilter<String> userRegisterCachePenetrationBloomFilter(RedissonClient redissonClient, UserRegisterBloomFilterProperties userRegisterBloomFilterProperties) {
+        //从 Redisson 客户端中获取名为 user_register_cache_penetration_bloom_filter 的 RBloomFilter 实例，然后将其赋值给了名为 cachePenetrationBloomFilter 的
         RBloomFilter<String> cachePenetrationBloomFilter = redissonClient.getBloomFilter(userRegisterBloomFilterProperties.getName());
+        //配置布隆过滤器期望插入的数量和误差概率
         cachePenetrationBloomFilter.tryInit(userRegisterBloomFilterProperties.getExpectedInsertions(), userRegisterBloomFilterProperties.getFalseProbability());
         return cachePenetrationBloomFilter;
     }

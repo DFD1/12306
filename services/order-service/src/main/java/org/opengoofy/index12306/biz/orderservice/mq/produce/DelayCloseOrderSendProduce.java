@@ -43,6 +43,7 @@ public class DelayCloseOrderSendProduce extends AbstractCommonSendProduceTemplat
 
     private final ConfigurableEnvironment environment;
 
+    //初始化
     public DelayCloseOrderSendProduce(@Autowired RocketMQTemplate rocketMQTemplate, @Autowired ConfigurableEnvironment environment) {
         super(rocketMQTemplate);
         this.environment = environment;
@@ -51,13 +52,13 @@ public class DelayCloseOrderSendProduce extends AbstractCommonSendProduceTemplat
     @Override
     protected BaseSendExtendDTO buildBaseSendExtendParam(DelayCloseOrderEvent messageSendEvent) {
         return BaseSendExtendDTO.builder()
-                .eventName("延迟关闭订单")
-                .keys(messageSendEvent.getOrderSn())
-                .topic(environment.resolvePlaceholders(OrderRocketMQConstant.ORDER_DELAY_CLOSE_TOPIC_KEY))
-                .tag(environment.resolvePlaceholders(OrderRocketMQConstant.ORDER_DELAY_CLOSE_TAG_KEY))
-                .sentTimeout(2000L)
+                .eventName("延迟关闭订单") // 消息的名称
+                .keys(messageSendEvent.getOrderSn()) //业务标识
+                .topic(environment.resolvePlaceholders(OrderRocketMQConstant.ORDER_DELAY_CLOSE_TOPIC_KEY))//主题
+                .tag(environment.resolvePlaceholders(OrderRocketMQConstant.ORDER_DELAY_CLOSE_TAG_KEY)) // 标签
+                .sentTimeout(2000L) //超时时间
                 // RocketMQ 延迟消息级别 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
-                .delayLevel(14)
+                .delayLevel(14) //设置延迟消息时间10min
                 .build();
     }
 

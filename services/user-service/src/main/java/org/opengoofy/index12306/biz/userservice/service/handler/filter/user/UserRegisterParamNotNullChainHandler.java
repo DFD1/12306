@@ -26,7 +26,7 @@ import java.util.Objects;
 
 /**
  * 用户注册参数必填检验
- *
+ * 验证参数必填
  *
  */
 @Component
@@ -51,6 +51,9 @@ public final class UserRegisterParamNotNullChainHandler implements UserRegisterC
         }
     }
 
+    //使用getOrder排序接口来决定组件的执行顺序。
+    //处理效率高的处理器应该优先执行，而需要操作redis mysql等处理操作需要放在后面执行。
+    //如果用户没有填写身份证号，此时去验证用户名是否可用是非常浪费的。这样就多了一次查询缓存的无用耗时。
     @Override
     public int getOrder() {
         return 0;
