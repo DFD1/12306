@@ -62,17 +62,24 @@ public abstract class AbstractCommonSendProduceTemplate<T> {
      * @return 消息发送返回结果
      */
     public SendResult sendMessage(T messageSendEvent) {
+        //构建消息
         BaseSendExtendDTO baseSendExtendDTO = buildBaseSendExtendParam(messageSendEvent);
+        //消息发送的返回结果
         SendResult sendResult;
         try {
             StringBuilder destinationBuilder = StrUtil.builder().append(baseSendExtendDTO.getTopic());
             if (StrUtil.isNotBlank(baseSendExtendDTO.getTag())) {
                 destinationBuilder.append(":").append(baseSendExtendDTO.getTag());
             }
+            //消息发送的返回结果
             sendResult = rocketMQTemplate.syncSend(
+                    //消息发送的目的地，即哪一个topic下的哪一个tag
                     destinationBuilder.toString(),
+                    //构建消息
                     buildMessage(messageSendEvent, baseSendExtendDTO),
+                    //超时时间
                     baseSendExtendDTO.getSentTimeout(),
+                    //延时级别
                     Optional.ofNullable(baseSendExtendDTO.getDelayLevel()).orElse(0)
             );
             log.info("[{}] 消息发送结果：{}，消息ID：{}，消息Keys：{}", baseSendExtendDTO.getEventName(), sendResult.getSendStatus(), sendResult.getMsgId(), baseSendExtendDTO.getKeys());

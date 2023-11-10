@@ -85,6 +85,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemService orderItemService;
     private final OrderPassengerRelationService orderPassengerRelationService;
     private final RedissonClient redissonClient;
+    //延时关闭订单消息生产者
     private final DelayCloseOrderSendProduce delayCloseOrderSendProduce;
     private final UserRemoteService userRemoteService;
 

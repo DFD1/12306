@@ -287,6 +287,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
                 .build();
     }
 
+    //列车数据查询v2版本
     @Override
     public TicketPageQueryRespDTO pageListTicketQueryV2(TicketPageQueryReqDTO requestParam) {
         // 责任链模式 验证城市名称是否存在、不存在加载缓存以及出发日期不能小于当前日期等等
@@ -355,7 +356,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
     }
 
 
-    //v1是分布式锁版本
+    //列车购票v1是分布式锁版本
     @Override
     public TicketPurchaseRespDTO purchaseTicketsV1(PurchaseTicketReqDTO requestParam) {
         // 责任链模式，验证 0：参数必填 1：参数正确性（车次是否未开售，是否已经禁止购票，车站是否存在于车次中）2：列车车次是否还有余票
@@ -372,11 +373,12 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
         }
     }
 
+    //通过Caffeine创建本地安全锁容器,Caffeine的expireAfterWrite方法代表，放入元素过期时间是什么,我们配置的过期时间为1天，代表一个列车的本地公平锁创建一天后失效
     private final Cache<String, ReentrantLock> localLockMap = Caffeine.newBuilder()
             .expireAfterWrite(1, TimeUnit.DAYS)
             .build();
 
-    //v2 令牌限流算法+分布式锁版本
+    //列车购票 v2 令牌限流算法+分布式锁版本
     @Override
     public TicketPurchaseRespDTO purchaseTicketsV2(PurchaseTicketReqDTO requestParam) {
         // 责任链模式，验证 1：参数必填 2：参数正确性 3：乘客是否已买当前车次等...
@@ -387,38 +389,55 @@ public class TicketServiceImpl extends ServiceImpl<TicketMapper, TicketDO> imple
         }
         // v1 版本购票存在 4 个较为严重的问题，v2 版本相比较 v1 版本更具有业务特点以及性能，整体提升较大
         // 写了详细的 v2 版本购票升级指南，欢迎查阅 https://nageoffer.com/12306/question
+        // 存储本次请求需要获取的本地锁的集合
         List<ReentrantLock> localLockList = new ArrayList<>();
+        // 存储本次请求需要获取的分布式锁的集合
         List<RLock> distributedLockList = new ArrayList<>();
+        // 按照座位类型进行分组
         Map<Integer, List<PurchaseTicketPassengerDetailDTO>> seatTypeMap = requestParam.getPassengers().stream()
                 .collect(Collectors.groupingBy(PurchaseTicketPassengerDetailDTO::getSeatType));
         seatTypeMap.forEach((searType, count) -> {
+            //// 构建锁 Key，增加了座位类型
             String lockKey = environment.resolvePlaceholders(String.format(LOCK_PURCHASE_TICKETS_V2, requestParam.getTrainId(), searType));
+            //根据锁唯一key获取本地锁
             ReentrantLock localLock = localLockMap.getIfPresent(lockKey);
+            //不存在的话执行加载流程
             if (localLock == null) {
+                // Caffeine 不像 ConcurrentHashMap 做了并发读写安全控制，这里需要咱们自己控制
                 synchronized (TicketService.class) {
+                    // 双重判定的方式，避免重复创建
                     if ((localLock = localLockMap.getIfPresent(lockKey)) == null) {
+                        // 创建本地公平锁并放入本地公平锁容器中
                         localLock = new ReentrantLock(true);
                         localLockMap.put(lockKey, localLock);
                     }
                 }
             }
+            // 添加到本地锁集合
             localLockList.add(localLock);
+            //获取分布式公平锁
             RLock distributedLock = redissonClient.getFairLock(lockKey);
+            // 添加到分布式锁集合
             distributedLockList.add(distributedLock);
         });
         try {
+            // 循环请求本地锁
             localLockList.forEach(ReentrantLock::lock);
+            // 循环请求分布式锁
             distributedLockList.forEach(RLock::lock);
             return ticketService.executePurchaseTickets(requestParam);
         } finally {
+            // 释放本地锁
             localLockList.forEach(localLock -> {
                 try {
                     localLock.unlock();
                 } catch (Throwable ignored) {
                 }
             });
+            // 释放分布式锁
             distributedLockList.forEach(distributedLock -> {
                 try {
+
                     distributedLock.unlock();
                 } catch (Throwable ignored) {
                 }

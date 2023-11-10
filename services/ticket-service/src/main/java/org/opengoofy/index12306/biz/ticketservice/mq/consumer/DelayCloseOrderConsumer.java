@@ -76,10 +76,13 @@ public final class DelayCloseOrderConsumer implements RocketMQListener<MessageWr
     @Override
     public void onMessage(MessageWrapper<DelayCloseOrderEvent> delayCloseOrderEventMessageWrapper) {
         log.info("[延迟关闭订单] 开始消费：{}", JSON.toJSONString(delayCloseOrderEventMessageWrapper));
+        //获取消息
         DelayCloseOrderEvent delayCloseOrderEvent = delayCloseOrderEventMessageWrapper.getMessage();
+        //获取订单号
         String orderSn = delayCloseOrderEvent.getOrderSn();
         Result<Boolean> closedTickOrder;
         try {
+            //远程调用订单服务 取消订单
             closedTickOrder = ticketOrderRemoteService.closeTickOrder(new CancelTicketOrderReqDTO(orderSn));
         } catch (Throwable ex) {
             log.error("[延迟关闭订单] 订单号：{} 远程调用订单服务失败", orderSn, ex);
@@ -90,21 +93,27 @@ public final class DelayCloseOrderConsumer implements RocketMQListener<MessageWr
                 log.info("[延迟关闭订单] 订单号：{} 用户已支付订单", orderSn);
                 return;
             }
+            //获取要取消的订单的车次Id、出发站点、到达站点、乘车人购票信息
             String trainId = delayCloseOrderEvent.getTrainId();
             String departure = delayCloseOrderEvent.getDeparture();
             String arrival = delayCloseOrderEvent.getArrival();
             List<TrainPurchaseTicketRespDTO> trainPurchaseTicketResults = delayCloseOrderEvent.getTrainPurchaseTicketResults();
             try {
+                //解锁选中以及沿途车票状态
                 seatService.unlock(trainId, departure, arrival, trainPurchaseTicketResults);
             } catch (Throwable ex) {
                 log.error("[延迟关闭订单] 订单号：{} 回滚列车DB座位状态失败", orderSn, ex);
                 throw ex;
             }
             try {
+                //因为取消了订单，释放了座位，所以要将座位信息更新回缓存
                 StringRedisTemplate stringRedisTemplate = (StringRedisTemplate) distributedCache.getInstance();
+                //从trainPurchaseTicketResults中将购票结果按座位类型进行分组，得到了seatTypeMap
                 Map<Integer, List<TrainPurchaseTicketRespDTO>> seatTypeMap = trainPurchaseTicketResults.stream()
                         .collect(Collectors.groupingBy(TrainPurchaseTicketRespDTO::getSeatType));
+                //获取该订单的开始站点和目的站点、中间站点信息
                 List<RouteDTO> routeDTOList = trainStationService.listTakeoutTrainStationRoute(trainId, departure, arrival);
+                //根据每种座位类型更新对应的列车余票数量到Redis中
                 routeDTOList.forEach(each -> {
                     String keySuffix = StrUtil.join("_", trainId, each.getStartStation(), each.getEndStation());
                     seatTypeMap.forEach((seatType, trainPurchaseTicketRespDTOList) -> {
