@@ -17,6 +17,7 @@
 
 package org.opengoofy.index12306.biz.ticketservice.toolkit;
 
+import org.opengoofy.index12306.biz.ticketservice.dao.entity.StationDO;
 import org.opengoofy.index12306.biz.ticketservice.dto.domain.RouteDTO;
 
 import java.util.ArrayList;
@@ -66,8 +67,8 @@ public final class StationCalculateUtil {
      */
     public static List<RouteDTO> takeoutStation(List<String> stations, String startStation, String endStation) {
         List<RouteDTO> takeoutStationList = new ArrayList<>();
-        int startIndex = stations.indexOf(startStation);
-        int endIndex = stations.indexOf(endStation);
+        int startIndex = stations.indexOf(startStation); //获取出发站点的下标
+        int endIndex = stations.indexOf(endStation);//获取到达站点的下标
         if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex) {
             return takeoutStationList;
         }
@@ -90,6 +91,9 @@ public final class StationCalculateUtil {
         List<String> stations = Arrays.asList("北京南", "济南西", "南京南", "杭州东", "宁波");
         String startStation = "北京南";
         String endStation = "南京南";
-        StationCalculateUtil.takeoutStation(stations, startStation, endStation).forEach(System.out::println);
+        StationCalculateUtil.throughStation(stations,startStation,endStation).forEach(System.out::println);//List<RouteDTO> = {{"北京南","济南西"},{"北京南","南京南"},{"济南西","南京南"}}
+        System.out.println();
+        StationCalculateUtil.takeoutStation(stations, startStation, endStation).forEach(System.out::println);//List<RouteDTO> = {{"北京南","济南西"},{"北京南","南京南"},{"北京南","杭州东"},{"北京南","宁波"},{"济南西","南京南"},{"济南西","杭州东"},{"济南西","宁波"}}
+
     }
 }

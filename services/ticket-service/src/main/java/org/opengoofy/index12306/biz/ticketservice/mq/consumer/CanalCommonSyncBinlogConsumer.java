@@ -54,12 +54,16 @@ public class CanalCommonSyncBinlogConsumer implements RocketMQListener<CanalBinl
     @Override
     public void onMessage(CanalBinlogEvent message) {
         // 余票 Binlog 更新延迟问题如何解决？详情查看：https://nageoffer.com/12306/question
+        //如果是ddl返回
+        //如果不是UPDATE类型数据变更 则返回
+        //如果没有开启binlog数据同步模型返回
         if (message.getIsDdl()
                 || CollUtil.isEmpty(message.getOld())
                 || !Objects.equals("UPDATE", message.getType())
                 || !StrUtil.equals(ticketAvailabilityCacheUpdateType, "binlog")) {
             return;
         }
+        //通过策略模式进行不同Binlog变更类型的监听，比如说订单和座位两个表就有分别有两个处理类。
         abstractStrategyChoose.chooseAndExecute(
                 message.getTable(),
                 message,
