@@ -26,6 +26,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 
  */
 @Data
+//@ConfigurationProperties 用于将外部配置文件（application.yaml)中的属性值绑定到 Java 对象的属性上。
+// 将application.yaml中属性为BloomFilterPenetrateProperties.PREFIX的值绑定到这个类的属性上
 @ConfigurationProperties(prefix = BloomFilterPenetrateProperties.PREFIX)
 public class BloomFilterPenetrateProperties {
 

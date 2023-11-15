@@ -57,6 +57,7 @@ public class StringRedisTemplateProxy implements DistributedCache {
     private static final String LUA_PUT_IF_ALL_ABSENT_SCRIPT_PATH = "lua/putIfAllAbsent.lua";
     private static final String SAFE_GET_DISTRIBUTED_LOCK_KEY_PREFIX = "safe_get_distributed_lock_get:";
 
+
     @Override
     public <T> T get(String key, Class<T> clazz) {
         String value = stringRedisTemplate.opsForValue().get(key);
@@ -71,6 +72,7 @@ public class StringRedisTemplateProxy implements DistributedCache {
         put(key, value, redisProperties.getValueTimeout());
     }
 
+    //如果 keys 全部不存在，则新增，返回 true，反之 false
     @Override
     public Boolean putIfAllAbsent(@NotNull Collection<String> keys) {
         DefaultRedisScript<Boolean> actual = Singleton.get(LUA_PUT_IF_ALL_ABSENT_SCRIPT_PATH, () -> {

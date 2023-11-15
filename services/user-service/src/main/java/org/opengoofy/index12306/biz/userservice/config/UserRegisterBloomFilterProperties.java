@@ -26,6 +26,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  */
 @Data
+//@ConfigurationProperties 用于将外部配置文件（application.yaml)中的属性值绑定到 Java 对象的属性上。
+// 将application.yaml中属性为UserRegisterBloomFilterProperties.PREFIX的值绑定到这个类的属性上
+//application.yaml中framework.cache.redis.bloom-filter.user-register.name = user_register_cache_penetration_bloom_filter${unique-name:}
+//所以UserRegisterBloomFilterProperties这个类的name属性也为user_register_cache_penetration_bloom_filter${unique-name:}
 @ConfigurationProperties(prefix = UserRegisterBloomFilterProperties.PREFIX)
 public final class UserRegisterBloomFilterProperties {
 

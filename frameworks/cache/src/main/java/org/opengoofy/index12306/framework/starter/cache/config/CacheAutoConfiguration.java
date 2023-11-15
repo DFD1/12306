@@ -32,7 +32,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  *
  *
  */
+
 @AllArgsConstructor
+//@EnableConfigurationProperties注解被应用在配置类上，指定需要扫描的配置属性类所在的包，Spring Boot会自动将被@ConfigurationProperties注解标记的类实例化为Bean，
 @EnableConfigurationProperties({RedisDistributedProperties.class, BloomFilterPenetrateProperties.class})
 public class CacheAutoConfiguration {
 
@@ -52,9 +54,13 @@ public class CacheAutoConfiguration {
      * 防止缓存穿透的布隆过滤器
      */
     @Bean
+    //通过这个ConditionalOnProperty注解我们可以在满足指定条件时，才创建这个bean
+    //只有当配置文件中的BloomFilterPenetrateProperties.PREFIX.enabled = true，才会将这个创建这个bean，并将其装配到Spring容器中。
     @ConditionalOnProperty(prefix = BloomFilterPenetrateProperties.PREFIX, name = "enabled", havingValue = "true")
     public RBloomFilter<String> cachePenetrationBloomFilter(RedissonClient redissonClient, BloomFilterPenetrateProperties bloomFilterPenetrateProperties) {
+        //使用redissonClient创建一个名为cache_penetration_bloom_filter的布隆过滤器
         RBloomFilter<String> cachePenetrationBloomFilter = redissonClient.getBloomFilter(bloomFilterPenetrateProperties.getName());
+        //通过BloomFilterPenetrateProperties类的属性 配置布隆过滤器期望插入的数量和误差概率
         cachePenetrationBloomFilter.tryInit(bloomFilterPenetrateProperties.getExpectedInsertions(), bloomFilterPenetrateProperties.getFalseProbability());
         return cachePenetrationBloomFilter;
     }

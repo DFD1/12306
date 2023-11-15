@@ -39,6 +39,7 @@ public class RBloomFilterConfiguration {
     @Bean
     public RBloomFilter<String> userRegisterCachePenetrationBloomFilter(RedissonClient redissonClient, UserRegisterBloomFilterProperties userRegisterBloomFilterProperties) {
         //从 Redisson 客户端中获取名为 user_register_cache_penetration_bloom_filter 的 RBloomFilter 实例，然后将其赋值给了名为 cachePenetrationBloomFilter 的
+        //创建一个新的名为 user_register_cache_penetration_bloom_filter 的 RBloomFilter 实例
         RBloomFilter<String> cachePenetrationBloomFilter = redissonClient.getBloomFilter(userRegisterBloomFilterProperties.getName());
         //配置布隆过滤器期望插入的数量和误差概率
         cachePenetrationBloomFilter.tryInit(userRegisterBloomFilterProperties.getExpectedInsertions(), userRegisterBloomFilterProperties.getFalseProbability());
