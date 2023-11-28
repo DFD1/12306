@@ -36,13 +36,19 @@ public final class IdempotentAspect {
     /**
      * 增强方法标记 {@link Idempotent} 注解逻辑
      */
+    //@Around注解表示该拦截器会拦截所有被@Idempotent注解标记的方法，使用@Around注解可以在方法执行前后增加一些逻辑
     @Around("@annotation(org.opengoofy.index12306.framework.starter.idempotent.annotation.Idempotent)")
     public Object idempotentHandler(ProceedingJoinPoint joinPoint) throws Throwable {
+        //在方法执行前获取方法上的注解信息
         Idempotent idempotent = getIdempotent(joinPoint);
+        //根据幂等注解上的scene和type，获取幂等执行处理器实例
         IdempotentExecuteHandler instance = IdempotentExecuteHandlerFactory.getInstance(idempotent.scene(), idempotent.type());
         Object resultObj;
         try {
+            //进行幂等验证，如果验证通过则继续执行原方法，并在执行后调用postProcessing方法进行后置处理
+            //如果执行出现异常就捕获异常，并调用exceptionProcessing()方法删除幂等标识，便于下次重试。
             instance.execute(joinPoint, idempotent);
+            //验证通过执行原方法
             resultObj = joinPoint.proceed();
             instance.postProcessing();
         } catch (RepeatConsumptionException ex) {
@@ -60,6 +66,7 @@ public final class IdempotentAspect {
             instance.exceptionProcessing();
             throw ex;
         } finally {
+
             IdempotentContext.clean();
         }
         return resultObj;
