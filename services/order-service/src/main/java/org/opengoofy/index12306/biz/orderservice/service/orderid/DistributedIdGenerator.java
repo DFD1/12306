@@ -38,18 +38,24 @@ public class DistributedIdGenerator {
 
     public synchronized long generateId() {
         long timestamp = System.currentTimeMillis() - EPOCH;
+        //系统时钟不稳定发生了回退，拒绝生成ID
         if (timestamp < lastTimestamp) {
             throw new RuntimeException("Clock moved backwards. Refusing to generate ID.");
         }
+        //如果上一次生成的ID和当前ID是在同一毫秒内
         if (timestamp == lastTimestamp) {
+            //sequence自增
             sequence = (sequence + 1) & ((1 << SEQUENCE_BITS) - 1);
+            //如果序列号到达最大值，等待下一毫秒再生成ID。
             if (sequence == 0) {
                 timestamp = tilNextMillis(lastTimestamp);
             }
         } else {
+            //上一次生成的ID和当前ID不在同一毫秒内，就把序列号置为0
             sequence = 0L;
         }
         lastTimestamp = timestamp;
+        //最终通过按位左移和按位或运算，将时间戳、节点ID和序列号组合为一个64位的唯一ID，并返回生成的ID。
         return (timestamp << (NODE_BITS + SEQUENCE_BITS)) | (nodeID << SEQUENCE_BITS) | sequence;
     }
 
